@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>強制「X」訂正システム</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif;
+            background-color: #f5f8fa;
+            color: #333;
+            text-align: center;
+            padding: 50px;
+            overflow: hidden;
+        }
+
+        h1 {
+            color: #1da1f2; /* あえて旧カラー */
+        }
+
+        #controls {
+            margin: 20px 0;
+        }
+
+        button {
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #1da1f2;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: background-color 0.3s;
+        }
+
+        button.recording {
+            background-color: #e0245e;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        #output {
+            margin-top: 30px;
+            font-size: 24px;
+            min-height: 100px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: inline-block;
+            width: 80%;
+            max-width: 600px;
+            text-align: left;
+        }
+
+        /* 謎のカットイン演出用CSS */
+        #cut-in {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.1s;
+        }
+
+        #cut-in.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .cut-in-text {
+            color: #ff0040;
+            font-size: 15vw;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 10px;
+            transform: skewX(-15deg) scale(0);
+            text-shadow: 4px 4px 0px #fff, -4px -4px 0px #fff;
+        }
+
+        #cut-in.active .cut-in-text {
+            animation: slashIn 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes slashIn {
+            0% { transform: translateX(100vw) skewX(-30deg) scale(0.5); opacity: 0; }
+            40% { transform: translateX(0) skewX(-15deg) scale(1.2); opacity: 1; }
+            60% { transform: translateX(0) skewX(-15deg) scale(1); opacity: 1; }
+            100% { transform: translateX(-100vw) skewX(0deg) scale(0.5); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🎙️ 音声監視システム稼働中</h1>
+    <p>「Twitter」や「ツイート」と言ってみてください。</p>
+
+    <div id="controls">
+        <button id="start-btn">監視をスタート</button>
+    </div>
+
+    <div id="output">ここに発言が表示されます...</div>
+
+    <div id="cut-in">
+        <div class="cut-in-text" id="cut-in-message">𝕏 / ポスト</div>
+    </div>
+
+    <script>
+        const startBtn = document.getElementById('start-btn');
+        const output = document.getElementById('output');
+        const cutIn = document.getElementById('cut-in');
+        const cutInMessage = document.getElementById('cut-in-message');
+
+        // 音声認識のセットアップ (Chrome対応)
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        
+        if (!SpeechRecognition) {
+            output.innerHTML = "お使いのブラウザは音声認識に対応していません。Chromeをお使いください。";
+        } else {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'ja-JP';
+            recognition.continuous = true;
+            recognition.interimResults = true; // 途中経過も取得
+
+            let isRecording = false;
+
+            startBtn.addEventListener('click', () => {
+                if (!isRecording) {
+                    recognition.start();
+                    startBtn.textContent = "監視中... (タップで停止)";
+                    startBtn.classList.add("recording");
+                    isRecording = true;
+                } else {
+                    recognition.stop();
+                    startBtn.textContent = "監視をスタート";
+                    startBtn.classList.remove("recording");
+                    isRecording = false;
+                }
+            });
+
+            recognition.onresult = (event) => {
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    let transcript = event.results[i][0].transcript;
+
+                    // NGワード検知！
+                    if (transcript.match(/ツイッター|Twitter|ツイート|tweet/i)) {
+                        
+                        // カットイン発動！
+                        triggerCutIn();
+
+                        // テキストを強制置換
+                        transcript = transcript
+                            .replace(/ツイッター|Twitter/gi, " <strong style='color:black; font-size:1.5em;'>𝕏</strong> ")
+                            .replace(/ツイート|tweet/gi, " <strong style='color:black; font-size:1.5em;'>ポスト</strong> ");
+                    }
+
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript + '<br>';
+                    }
+                }
+
+                if (finalTranscript !== '') {
+                    output.innerHTML = finalTranscript;
+                }
+            };
+
+            // 録音が勝手に止まったら再開する（おまけ）
+            recognition.onend = () => {
+                if (isRecording) {
+                    recognition.start();
+                }
+            };
+        }
+
+        // カットイン演出を制御する関数
+        function triggerCutIn() {
+            // すでにアニメーション中の場合はリセット
+            cutIn.classList.remove('active');
+            
+            // 少しだけ遅延させてクラスを付与（アニメーションを確実に再発火させるため）
+            setTimeout(() => {
+                cutIn.classList.add('active');
+                
+                // アニメーションが終わる頃（1秒後）に非表示に戻す
+                setTimeout(() => {
+                    cutIn.classList.remove('active');
+                }, 1000);
+            }, 50);
+        }
+    </script>
+</body>
+</html>
