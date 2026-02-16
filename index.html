@@ -3,140 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>強制「X」訂正システム</title>
+    <title>𝕏 教育システム</title>
     <style>
         body {
-            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
             background-color: #f5f8fa;
             color: #333;
             text-align: center;
             padding: 50px;
-            overflow: hidden;
+            overflow-x: hidden; /* スタンプがはみ出さないように */
+            position: relative;
+            min-height: 100vh;
+            transition: background-color 0.5s;
         }
 
-        h1 {
-            color: #1da1f2; /* あえて旧カラー */
-        }
+        h1 { color: #1da1f2; transition: color 0.5s; }
+        /* 侵食が進むとダークモードっぽくなる */
+        body.dark-mode { background-color: #111; color: #eee; }
+        body.dark-mode h1 { color: #fff; }
 
-        #controls {
-            margin: 20px 0;
-        }
-
+        #controls { margin: 20px 0; position: relative; z-index: 10; }
         button {
-            padding: 15px 30px;
-            font-size: 18px;
-            font-weight: bold;
-            color: #fff;
-            background-color: #1da1f2;
-            border: none;
-            border-radius: 30px;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: background-color 0.3s;
+            padding: 15px 30px; font-size: 18px; font-weight: bold; color: #fff;
+            background-color: #1da1f2; border: none; border-radius: 30px;
+            cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.3s;
         }
-
-        button.recording {
-            background-color: #e0245e;
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
+        button.recording { background-color: #e0245e; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
         #output {
-            margin-top: 30px;
-            font-size: 24px;
-            min-height: 100px;
-            padding: 20px;
-            background: #fff;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            display: inline-block;
-            width: 80%;
-            max-width: 600px;
-            text-align: left;
+            margin-top: 30px; font-size: 24px; min-height: 100px; padding: 20px;
+            background: rgba(255,255,255,0.9); border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: inline-block;
+            width: 80%; max-width: 600px; text-align: left; position: relative; z-index: 10;
+            max-height: 400px; overflow-y: auto; /* 長くなったらスクロール */
         }
 
-        /* 謎のカットイン演出用CSS */
-        #cut-in {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(0, 0, 0, 0.9);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.1s;
+        /* --- 共通カットインスタイル --- */
+        .cut-in-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.2s;
         }
-
-        #cut-in.active {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
+        .cut-in-overlay.active { opacity: 1; pointer-events: auto; }
         .cut-in-text {
-            color: #ff0040;
-            font-size: 15vw;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 10px;
-            transform: skewX(-15deg) scale(0);
-            text-shadow: 4px 4px 0px #fff, -4px -4px 0px #fff;
+            font-size: 15vw; font-weight: 900; text-transform: uppercase; letter-spacing: 5px;
+            transform: skewX(-15deg) scale(0); transition: transform 0.1s;
+            white-space: nowrap;
+        }
+        .cut-in-overlay.active .cut-in-text {
+            animation: slashIn 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
         }
 
-        #cut-in.active .cut-in-text {
-            animation: slashIn 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        /* --- 罰（ムチ）のカットイン --- */
+        #bad-cut-in { background: rgba(0, 0, 0, 0.95); }
+        #bad-cut-in .cut-in-text {
+            color: #ff0055; text-shadow: 3px 3px 0 #fff, -3px -3px 0 #fff;
+        }
+
+        /* --- 褒め（アメ）のカットイン --- */
+        #good-cut-in {
+            /* 虹色グラデーション背景 */
+            background: linear-gradient(45deg, rgba(255,0,0,0.8), rgba(255,165,0,0.8), rgba(255,255,0,0.8), rgba(0,128,0,0.8), rgba(0,255,255,0.8), rgba(0,0,255,0.8), rgba(128,0,128,0.8));
+            background-size: 400% 400%; animation: rainbowBG 3s ease infinite;
+        }
+        #good-cut-in .cut-in-text {
+            color: #fff; /* ゴールド風 */
+            text-shadow: 0 0 10px gold, 0 0 20px gold, 0 0 30px orange;
+            font-family: 'Impact', sans-serif;
+        }
+        #good-cut-in .sub-text {
+             font-size: 3vw; margin-top: 10px; color: gold; font-weight: bold;
         }
 
         @keyframes slashIn {
-            0% { transform: translateX(100vw) skewX(-30deg) scale(0.5); opacity: 0; }
-            40% { transform: translateX(0) skewX(-15deg) scale(1.2); opacity: 1; }
-            60% { transform: translateX(0) skewX(-15deg) scale(1); opacity: 1; }
-            100% { transform: translateX(-100vw) skewX(0deg) scale(0.5); opacity: 0; }
+            0% { transform: translateX(120vw) skewX(-30deg) scale(0.8); opacity: 0; }
+            30% { transform: translateX(0) skewX(-15deg) scale(1.1); opacity: 1; }
+            70% { transform: translateX(0) skewX(-15deg) scale(1); opacity: 1; }
+            100% { transform: translateX(-120vw) skewX(0deg) scale(0.8); opacity: 0; }
         }
+        @keyframes rainbowBG { 0% {background-position: 0% 50%} 50% {background-position: 100% 50%} 100% {background-position: 0% 50%} }
+
+        /* --- 侵食スタンプ --- */
+        .x-stamp {
+            position: fixed; font-family: sans-serif; font-weight: bold;
+            color: rgba(0,0,0,0.15); z-index: 1; pointer-events: none; user-select: none;
+        }
+        body.dark-mode .x-stamp { color: rgba(255,255,255,0.15); }
+
     </style>
 </head>
 <body>
 
-    <h1>🎙️ 音声監視システム稼働中</h1>
-    <p>「Twitter」や「ツイート」と言ってみてください。</p>
+    <h1>🎙️ 𝕏 教育システム起動中</h1>
+    <p>旧称を捨て去り、正しい呼び名を身につけましょう。<br>正しい発言には賞賛が、過ちには「訂正」が与えられます。</p>
 
     <div id="controls">
-        <button id="start-btn">監視をスタート</button>
+        <button id="start-btn">監視スタート</button>
     </div>
 
     <div id="output">ここに発言が表示されます...</div>
 
-    <div id="cut-in">
-        <div class="cut-in-text" id="cut-in-message">𝕏 / ポスト</div>
+    <div id="bad-cut-in" class="cut-in-overlay">
+        <div class="cut-in-text">𝕏 / ポスト</div>
     </div>
+
+    <div id="good-cut-in" class="cut-in-overlay">
+        <div style="display: flex; flex-direction: column; align-items: center;">
+             <div class="cut-in-text">EXCELLENT!!</div>
+             <div class="sub-text">その調子だ、忠実なユーザーよ。</div>
+        </div>
+    </div>
+    
+    <div id="stamp-container"></div>
+
 
     <script>
         const startBtn = document.getElementById('start-btn');
         const output = document.getElementById('output');
-        const cutIn = document.getElementById('cut-in');
-        const cutInMessage = document.getElementById('cut-in-message');
+        const badCutIn = document.getElementById('bad-cut-in');
+        const goodCutIn = document.getElementById('good-cut-in');
+        const stampContainer = document.getElementById('stamp-container');
+        let stampCount = 0; // スタンプの数
 
-        // 音声認識のセットアップ (Chrome対応)
+        // 音声認識設定
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        
         if (!SpeechRecognition) {
-            output.innerHTML = "お使いのブラウザは音声認識に対応していません。Chromeをお使いください。";
+            output.innerHTML = "Chromeブラウザで実行してください。";
         } else {
             const recognition = new SpeechRecognition();
             recognition.lang = 'ja-JP';
             recognition.continuous = true;
-            recognition.interimResults = true; // 途中経過も取得
+            recognition.interimResults = false; // 【バグ修正】確定結果のみ受け取る
 
             let isRecording = false;
+            let isCoolDown = false; // 演出の連発を防ぐクールダウン
 
             startBtn.addEventListener('click', () => {
                 if (!isRecording) {
@@ -146,63 +147,91 @@
                     isRecording = true;
                 } else {
                     recognition.stop();
-                    startBtn.textContent = "監視をスタート";
+                    startBtn.textContent = "監視スタート";
                     startBtn.classList.remove("recording");
                     isRecording = false;
                 }
             });
 
             recognition.onresult = (event) => {
-                let finalTranscript = '';
-
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    let transcript = event.results[i][0].transcript;
-
-                    // NGワード検知！
-                    if (transcript.match(/ツイッター|Twitter|ツイート|tweet/i)) {
-                        
-                        // カットイン発動！
-                        triggerCutIn();
-
-                        // テキストを強制置換
-                        transcript = transcript
-                            .replace(/ツイッター|Twitter/gi, " <strong style='color:black; font-size:1.5em;'>𝕏</strong> ")
-                            .replace(/ツイート|tweet/gi, " <strong style='color:black; font-size:1.5em;'>ポスト</strong> ");
-                    }
-
-                    if (event.results[i].isFinal) {
-                        finalTranscript += transcript + '<br>';
-                    }
-                }
-
-                if (finalTranscript !== '') {
-                    output.innerHTML = finalTranscript;
-                }
-            };
-
-            // 録音が勝手に止まったら再開する（おまけ）
-            recognition.onend = () => {
-                if (isRecording) {
-                    recognition.start();
-                }
-            };
-        }
-
-        // カットイン演出を制御する関数
-        function triggerCutIn() {
-            // すでにアニメーション中の場合はリセット
-            cutIn.classList.remove('active');
-            
-            // 少しだけ遅延させてクラスを付与（アニメーションを確実に再発火させるため）
-            setTimeout(() => {
-                cutIn.classList.add('active');
+                const lastResult = event.results[event.resultIndex];
                 
-                // アニメーションが終わる頃（1秒後）に非表示に戻す
-                setTimeout(() => {
-                    cutIn.classList.remove('active');
-                }, 1000);
-            }, 50);
+                // 確定した結果のみ処理する
+                if (lastResult.isFinal) {
+                    let transcript = lastResult[0].transcript;
+                    let isBad = false;
+
+                    // --- 判定ロジック ---
+
+                    // NGワード判定（ムチ）
+                    if (transcript.match(/ツイッター|Twitter|ツイート|tweet|つぶやく|呟く/i)) {
+                        isBad = true;
+                        if (!isCoolDown) {
+                            triggerAction(badCutIn); // 罰カットイン発動
+                            addStamp(); // 【新機能2】スタンプ侵食
+                        }
+                        // テキスト置換
+                        transcript = transcript
+                            .replace(/ツイッター|Twitter/gi, " <strong style='color:#ff0055;'>𝕏</strong> ")
+                            .replace(/ツイート|tweet|つぶやく|呟く/gi, " <strong style='color:#ff0055;'>ポスト</strong> ");
+                    
+                    // OKワード判定（アメ）
+                    // NGワードが含まれていない場合のみ褒める
+                    } else if (transcript.match(/エックス|X|ポスト|post/i)) {
+                        if (!isCoolDown) {
+                            triggerAction(goodCutIn); // 【新機能4】褒めカットイン発動
+                        }
+                         transcript = transcript
+                            .replace(/エックス|X/gi, " <strong style='color:gold;'>𝕏</strong> ")
+                            .replace(/ポスト|post/gi, " <strong style='color:gold;'>ポスト</strong> ");
+                    }
+
+                    // ログ出力（最新が上に来るように）
+                    output.innerHTML = '<div>' + transcript + '</div>' + output.innerHTML;
+                }
+            };
+
+            recognition.onend = () => { if (isRecording) recognition.start(); };
         }
+
+        // カットイン演出用関数（共通）
+        function triggerAction(element) {
+            isCoolDown = true;
+            element.classList.add('active');
+            // アニメーション時間に合わせて非表示化＆クールダウン解除
+            setTimeout(() => {
+                element.classList.remove('active');
+                // 少し余韻を持たせてから次の入力を受け付ける
+                setTimeout(() => { isCoolDown = false; }, 500); 
+            }, 1500);
+        }
+
+        // 【新機能2】スタンプを追加する関数
+        function addStamp() {
+            stampCount++;
+            const stamp = document.createElement('div');
+            stamp.classList.add('x-stamp');
+            stamp.textContent = '𝕏';
+            
+            // ランダムなスタイルを生成
+            const size = Math.random() * 100 + 50; // 50px〜150px
+            const x = Math.random() * window.innerWidth;
+            const y = Math.random() * window.innerHeight;
+            const rotate = Math.random() * 360;
+
+            stamp.style.fontSize = `${size}px`;
+            stamp.style.left = `${x}px`;
+            stamp.style.top = `${y}px`;
+            stamp.style.transform = `translate(-50%, -50%) rotate(${rotate}deg)`;
+
+            stampContainer.appendChild(stamp);
+
+            // 一定数貯まるとダークモードへ移行（侵食完了感）
+            if (stampCount > 10) {
+                document.body.classList.add('dark-mode');
+            }
+        }
+
     </script>
 </body>
 </html>
